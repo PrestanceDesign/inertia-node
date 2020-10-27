@@ -31,12 +31,12 @@ module.exports = (html, version = "1") => {
       },
 
       setHeaders(headers) {
-        _headers = headers;
+        _headers = { ..._headers, ...headers };
         return this;
       },
 
       async render({ props, ...pageRest }) {
-        _page = { ...pageRest, url: req.url, version };
+        _page = { ...pageRest, url: req.originalUrl || req.url, version };
 
         const allProps = { ..._sharedProps, ...props };
 
@@ -89,7 +89,7 @@ module.exports = (html, version = "1") => {
           ? 303
           : 302;
 
-        res.writeHead(statusCode, { Location: url }).end();
+        res.writeHead(statusCode, { _headers, Location: url }).end();
       },
     };
 
