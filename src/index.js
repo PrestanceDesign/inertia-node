@@ -89,7 +89,7 @@ module.exports = (html, version = "1") => {
           ? 303
           : 302;
 
-        res.writeHead(statusCode, { _headers, Location: url }).end();
+        res.writeHead(statusCode, { ..._headers, Location: url }).end();
       },
     };
 
