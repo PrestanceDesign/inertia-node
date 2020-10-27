@@ -119,10 +119,12 @@ Shared props are props that will be combined with the props you pass to the [`re
 .get("/todos", ({ Inertia }) => {
   Inertia.render({
     component: "Todos",
-    todos: [
-      { text: "Study Korean", done: false },
-      { text: "Cook Arabic food", done: false },
-    ]
+    props: {
+      todos: [
+        { text: "Study Korean", done: false },
+        { text: "Cook Arabic food", done: false },
+      ]
+    }
     // JavaScript component on the client will receive
     // {
     //   username: "ironman",
@@ -160,7 +162,7 @@ Add custom headers to your response.
 
 1. `statusCode`, _number_ - The response's status code
 
-Change the status code when sending a response. Useful for e.g. when you want to render an error.
+Change the status code when sending a response. Useful for e.g. when you want to render an error. Headers set from previous calls will be merged with headers set from any subsequent calls.
 
 ```javascript
 .get("/", ({ Inertia }) => {
