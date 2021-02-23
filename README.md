@@ -1,4 +1,4 @@
-# inertia-node
+# inertia-node V2
 
 `inertia-node` is a simple Node.js adapter/middleware for [Inertia.js](https://inertiajs.com) that uses standard Node.js APIs. It can be used with any middleware based web framework that exposes the standard Node.js [`request`](https://nodejs.org/api/http.html#http_class_http_incomingmessage) and [`response`](https://nodejs.org/api/http.html#http_class_http_serverresponse) objects such as [Express.js](http://expressjs.com) or [Polka](https://github.com/lukeed/polka).
 
@@ -21,13 +21,13 @@ const inertia = require("inertia-node");
 const ASSET_VERSION = "1";
 const { PORT = 3000 } = process.env;
 
-const html = (page, viewData) => `
+const html = (pageString, viewData) => `
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    
+
     <!-- Custom data -->
     <title>${viewData.title}</title>
 
@@ -37,7 +37,7 @@ const html = (page, viewData) => `
   </head>
 
   <!-- The Inertia page object -->
-  <body id="app" data-page='${JSON.stringify(page)}'></body>
+  <body id="app" data-page='${pageString}'></body>
 </html>
 `;
 
@@ -59,12 +59,12 @@ polka()
 
 `inertia-node` expects two arguments:
 
-1. `html`: a function that recieves the Inertia `page` object and an optional `viewData` object that you can populate with additional data. The function should return an HTML string.
+1. `html`: a function that recieves `pageString` - a correctly encoded string of the Inertia page object - and an optional `viewData` object that you can populate with additional data. The function should return an HTML string.
 2. `version` (optional): your current asset version
 
 It will return a standard Node.js middleware that you can use with Express.js, Polka etc. Functions can be accessed from the `Inertia` object that will be added to the `request`. You can chain functions together but you can't call another function after calling [`render`](#renderpage) or [`redirect`](#redirecturl).
 
-**Note:** In your HTML view function make sure to always stringify the `page` object and include it in the `data-page` attribute of the HTML node you want to render your JavaScript app in. For more infos on how Inertia works read [the protocol](https://inertiajs.com/the-protocol) on the Inertia website.
+**Note:** In your HTML view function make sure to always include the page string in the `data-page` attribute of the HTML node you want to render your JavaScript app in. Version 1 of `inertia-node` did not stringify and encode the page object for you so that the data could be used in the HTML. But since you are expected to use the `viewData` object to pass any additional data to your HTML, version 2 now stringifies and correctly encodes the page object for you. For more information on how Inertia works read [the protocol](https://inertiajs.com/the-protocol) on the Inertia website.
 
 ## API
 
@@ -75,18 +75,18 @@ It will return a standard Node.js middleware that you can use with Express.js, P
 `setViewData` can be used to pass additional data to your [HTML view function](#usage) such as the page's title or other meta data.
 
 ```javascript
-.use(({ Inertia }, _, next) => {
+app.use(({ Inertia }, _, next) => {
   Inertia.setViewData({
     title: "Todo App",
     description:"A Web App to Create and Manage Todos"
   })
 
   next();
-})
+});
 
 // ...
 
-const html = (page, viewData) => `
+const html = (pageString, viewData) => `
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -100,10 +100,12 @@ const html = (page, viewData) => `
     <script defer type="module" src="/build/main.js"></script>
   </head>
 
-  <body id="app" data-page='${JSON.stringify(page)}'></body>
+  <body id="app" data-page='${pageString}'></body>
 </html>
 `;
 ```
+
+If you call `setViewData` multiple times during a single request, the data of all calls will be merged to a single object and be available to your HTML template.
 
 ### shareProps(props)
 
@@ -112,11 +114,12 @@ const html = (page, viewData) => `
 Shared props are props that will be combined with the props you pass to the [`render`](#renderpage) function. When you call `shareProps` more than once, props shared from previous calls will be merged with props from any subsequent calls.
 
 ```javascript
-.use(({ Inertia }, _, next) => {
+app.use(({ Inertia }, _, next) => {
   Inertia.shareProps({ username: "ironman" })
   next();
-})
-.get("/todos", ({ Inertia }) => {
+});
+
+app.get("/todos", ({ Inertia }) => {
   Inertia.render({
     component: "Todos",
     props: {
@@ -134,7 +137,7 @@ Shared props are props that will be combined with the props you pass to the [`re
     //   ]
     // }
   });
-})
+});
 ```
 
 ### setHeaders(headers)
@@ -146,7 +149,7 @@ Add custom headers to your response.
 **Note:** Headers that are required by Inertia take precedence and cannot be overwritten.
 
 ```javascript
-.get("/", ({ Inertia }) => {
+app.get("/", ({ Inertia }) => {
   Inertia
     .setHeaders({
       token: "7pTgHCv0JgeAyyBRDpUi"
@@ -155,7 +158,7 @@ Add custom headers to your response.
       component: "Index",
       props: { username: "ironman" }
     });
-})
+});
 ```
 
 ### setStatusCode(statusCode)
@@ -165,20 +168,21 @@ Add custom headers to your response.
 Change the status code when sending a response. Useful for e.g. when you want to render an error. Headers set from previous calls will be merged with headers set from any subsequent calls.
 
 ```javascript
-.get("/", ({ Inertia }) => {
+app.get("/", ({ Inertia }) => {
   Inertia.render({
     component: "Index",
     props: { username: "ironman" }
   });
-})
-.use(({ Inertia }) => {
+});
+
+app.use(({ Inertia }) => {
   Inertia
     .setStatusCode(404)
     .render({
       component: "Error",
       props: { message: "Page not found" },
     });
-})
+});
 ```
 
 ### render(page)
@@ -195,7 +199,7 @@ The Inertia page object consists of the following properties:
 4. `version`, _string_ - The asset version. This will be automatically added by the middleware.
 
 ```javascript
-.get("/todos", ({ Inertia }) => {
+app.get("/todos", ({ Inertia }) => {
   Inertia.render({
     component: "Todos",
     props: {
@@ -205,13 +209,13 @@ The Inertia page object consists of the following properties:
       ]
     },
   });
-})
+});
 ```
 
 On Partial Reloads only props requested by the client will be sent. To improve performance on the server you can wrap each prop inside a function so that they will only be evaluated when necessary.
 
 ```javascript
-.get("/todos", ({ Inertia }) => {
+app.get("/todos", ({ Inertia }) => {
   const todos = async () => await database.getTodos();
   const bookmarks = async () => await database.getBookmarks();
 
@@ -222,7 +226,7 @@ On Partial Reloads only props requested by the client will be sent. To improve p
       bookmarks
     },
   });
-})
+});
 ```
 
 Now when the client only requests `todos` the middleware will hit the database only once and not call `bookmarks`.
@@ -234,10 +238,24 @@ Now when the client only requests `todos` the middleware will hit the database o
 Redirect the client to a different URL.
 
 ```javascript
-.post("/todos", (req, res) => {
+app.post("/todos", (req, res) => {
   database.createTodo(req.body);
   req.Inertia.redirect("/todos");
-})
+});
+```
+
+Since redirects to the same URL are very common with Inertia, `inertia-node` provides a shortcut for this.
+
+Calling the following code:
+
+```js
+req.Inertia.redirect(req.headers["referer"]);
+```
+
+is equivalent to just:
+
+```js
+req.Inertia.redirect();
 ```
 
 **Note:** Inertia requires you to use a `303` status code when redirecting upon a `PUT`, `PATCH` or `DELETE` request and a `302` status code otherwise. The `redirect` function will automatically take care of this for you. If you handle redirects yourself make sure to select the correct status code.

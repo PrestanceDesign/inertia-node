@@ -8,20 +8,19 @@ module.exports = (html, version = "1") => {
       return res.writeHead(409, { "X-Inertia-Location": req.url }).end();
     }
 
-    let _page = {};
-    let _viewData = {};
-    let _sharedProps = {};
-    let _statusCode = 200;
     let _headers = {};
+    let _viewData = {};
+    let _statusCode = 200;
+    let _sharedProps = {};
 
     const Inertia = {
-      setViewData(viewData) {
-        _viewData = viewData;
+      setHeaders(headers) {
+        _headers = { ..._headers, ...headers };
         return this;
       },
 
-      shareProps(sharedProps) {
-        _sharedProps = { ..._sharedProps, ...sharedProps };
+      setViewData(viewData) {
+        _viewData = { ..._viewData, viewData };
         return this;
       },
 
@@ -30,13 +29,18 @@ module.exports = (html, version = "1") => {
         return this;
       },
 
-      setHeaders(headers) {
-        _headers = { ..._headers, ...headers };
+      shareProps(sharedProps) {
+        _sharedProps = { ..._sharedProps, ...sharedProps };
         return this;
       },
 
-      async render({ props, ...pageRest }) {
-        _page = { ...pageRest, url: req.originalUrl || req.url, version };
+      async render({ props, component }) {
+        let page = {
+          version,
+          component,
+          props: {},
+          url: req.originalUrl || req.url,
+        };
 
         const allProps = { ..._sharedProps, ...props };
 
@@ -44,26 +48,20 @@ module.exports = (html, version = "1") => {
 
         if (
           req.headers["x-inertia-partial-data"] &&
-          req.headers["x-inertia-partial-component"] === _page.component
+          req.headers["x-inertia-partial-component"] === component
         ) {
           dataKeys = req.headers["x-inertia-partial-data"].split(",");
         } else {
           dataKeys = Object.keys(allProps);
         }
 
-        _page.props = await dataKeys.reduce(async (objPromise, key) => {
-          let value;
-
+        for (const key of dataKeys) {
           if (typeof allProps[key] === "function") {
-            value = await allProps[key]();
+            page.props[key] = await allProps[key]();
           } else {
-            value = allProps[key];
+            page.props[key] = allProps[key];
           }
-
-          const obj = await objPromise;
-
-          return { ...obj, [key]: value };
-        }, {});
+        }
 
         if (req.headers["x-inertia"]) {
           res
@@ -73,18 +71,22 @@ module.exports = (html, version = "1") => {
               "X-Inertia": "true",
               Vary: "Accept",
             })
-            .end(JSON.stringify(_page));
+            .end(JSON.stringify(page));
         } else {
+          const encodedPageString = JSON.stringify(page)
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+
           res
             .writeHead(_statusCode, {
               ..._headers,
               "Content-Type": "text/html",
             })
-            .end(html(_page, _viewData));
+            .end(html(encodedPageString, _viewData));
         }
       },
 
-      redirect(url) {
+      redirect(url = req.headers["referer"]) {
         const statusCode = ["PUT", "PATCH", "DELETE"].includes(req.method)
           ? 303
           : 302;
