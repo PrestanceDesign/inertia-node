@@ -21,7 +21,7 @@ const inertia = require("inertia-node");
 const ASSET_VERSION = "1";
 const { PORT = 3000 } = process.env;
 
-const html = (pageString, viewData) => `
+const html = (pageString, { viewData }) => `
 <!DOCTYPE html>
 <html lang="en">
   <head>
